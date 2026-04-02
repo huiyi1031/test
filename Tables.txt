@@ -1,0 +1,306 @@
+DROP TABLE VoucherRedemption;
+DROP TABLE RestaurantHours;
+DROP TABLE Delivery;
+DROP TABLE Pickup;
+DROP TABLE OrderDetails;
+DROP TABLE Payment;
+DROP TABLE Orders;
+DROP TABLE Item;
+DROP TABLE Promotion;
+DROP TABLE Enrollment;
+DROP TABLE MemberPlan;
+DROP TABLE Voucher;
+DROP TABLE Rider;
+DROP TABLE MemberAddress;
+DROP TABLE Restaurant;
+DROP TABLE Member;
+
+-- =========================
+-- MEMBER
+-- =========================
+CREATE TABLE Member (
+    memberID VARCHAR2(6) NOT NULL,
+    memberName VARCHAR2(100) NOT NULL,
+    memberEmail VARCHAR2(100) NOT NULL,
+    memberContact VARCHAR2(15) NOT NULL,
+    memberPassword VARCHAR2(100) NOT NULL,
+    memberJoinDate DATE DEFAULT SYSDATE NOT NULL,
+    memberStatus VARCHAR2(10) DEFAULT 'Active',
+    CONSTRAINT pk_member PRIMARY KEY (memberID),
+    CONSTRAINT uq_member_email UNIQUE (memberEmail),
+    CONSTRAINT uq_member_contact UNIQUE (memberContact),
+    CONSTRAINT chk_member_status CHECK (memberStatus IN ('Active','Inactive')),
+    CONSTRAINT chk_member_email CHECK (
+        REGEXP_LIKE(memberEmail,'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$')
+    )
+);
+
+-- =========================
+-- RESTAURANT
+-- =========================
+CREATE TABLE Restaurant (
+    restID VARCHAR2(5) NOT NULL,
+    restName VARCHAR2(100) NOT NULL,
+    restContact VARCHAR2(20),
+    restLocation VARCHAR2(100),
+    restCategory VARCHAR2(20),
+    cuisineType VARCHAR2(50),
+    CONSTRAINT pk_restaurant PRIMARY KEY (restID),
+    CONSTRAINT uq_restaurant_contact UNIQUE (restContact),
+    CONSTRAINT chk_restaurant_category CHECK (restCategory IN ('Halal','Non-Halal'))
+);
+
+-- =========================
+-- MEMBER ADDRESS
+-- =========================
+CREATE TABLE MemberAddress (
+    addressID VARCHAR2(6) NOT NULL,
+    memberID VARCHAR2(6) NOT NULL,
+    addressLine VARCHAR2(200) NOT NULL,
+    unitNumber VARCHAR2(20),
+    city VARCHAR2(50) NOT NULL,
+    postalCode VARCHAR2(10) NOT NULL,
+    state VARCHAR2(50) NOT NULL,
+    CONSTRAINT pk_member_address PRIMARY KEY (addressID),
+    CONSTRAINT fk_member_address_member FOREIGN KEY (memberID) REFERENCES Member(memberID)
+);
+
+-- =========================
+-- MEMBER PLAN
+-- =========================
+CREATE TABLE MemberPlan (
+    planID VARCHAR2(6) NOT NULL,
+    planName VARCHAR2(10) NOT NULL,
+    monthlyFee NUMBER(5,2) DEFAULT 0 NOT NULL,
+    CONSTRAINT pk_member_plan PRIMARY KEY (planID),
+    CONSTRAINT uq_member_plan_name UNIQUE (planName),
+    CONSTRAINT chk_member_plan_name CHECK (planName IN ('Normal','VIP')),
+    CONSTRAINT chk_member_plan_fee CHECK (
+        (planName = 'Normal' AND monthlyFee = 0) OR
+        (planName = 'VIP' AND monthlyFee = 6)
+    )
+);
+
+-- =========================
+-- ENROLLMENT
+-- =========================
+CREATE TABLE Enrollment (
+    enrollID VARCHAR2(6) NOT NULL,
+    memberID VARCHAR2(6) NOT NULL,
+    planID VARCHAR2(6) NOT NULL,
+    startDate DATE NOT NULL,
+    endDate DATE,
+    feeCharged NUMBER(6,2) DEFAULT 0,
+    enrollStatus VARCHAR2(10) DEFAULT 'Active',
+    CONSTRAINT pk_enrollment PRIMARY KEY (enrollID),
+    CONSTRAINT fk_enrollment_member FOREIGN KEY (memberID) REFERENCES Member(memberID),
+    CONSTRAINT fk_enrollment_plan FOREIGN KEY (planID) REFERENCES MemberPlan(planID),
+    CONSTRAINT chk_enrollment_status CHECK (enrollStatus IN ('Active','Expired','Cancelled')),
+    CONSTRAINT chk_enrollment_fee CHECK (feeCharged >= 0)
+);
+
+-- =========================
+-- RIDER
+-- =========================
+CREATE TABLE Rider (
+    riderID VARCHAR2(6) NOT NULL,
+    riderName VARCHAR2(100) NOT NULL,
+    riderContact VARCHAR2(15) NOT NULL,
+    riderEmail VARCHAR2(100) NOT NULL,
+    plateNumber VARCHAR2(20) NOT NULL,
+    CONSTRAINT pk_rider PRIMARY KEY (riderID),
+    CONSTRAINT uq_rider_contact UNIQUE (riderContact),
+    CONSTRAINT uq_rider_email UNIQUE (riderEmail),
+    CONSTRAINT chk_rider_email CHECK (
+        REGEXP_LIKE(riderEmail,'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$')
+    )
+);
+
+-- =========================
+-- PROMOTION
+-- =========================
+CREATE TABLE Promotion (
+    promoID VARCHAR2(6) NOT NULL,
+    promoName VARCHAR2(100) NOT NULL,
+    promoType VARCHAR2(20) NOT NULL,
+    promoValue NUMBER(8,2) NOT NULL,
+    startDate DATE NOT NULL,
+    endDate DATE NOT NULL,
+    startTime TIMESTAMP,
+    endTime TIMESTAMP,
+    CONSTRAINT pk_promotion PRIMARY KEY (promoID),
+    CONSTRAINT chk_promotion_type CHECK (promoType IN ('Percentage','Fixed')),
+    CONSTRAINT chk_promotion_value CHECK (promoValue > 0),
+    CONSTRAINT chk_promotion_date CHECK (endDate > startDate OR (endDate = startDate AND endTime > startTime)),
+    CONSTRAINT chk_promotion_time CHECK (endTime > startTime)
+);
+
+-- =========================
+-- VOUCHER
+-- =========================
+CREATE TABLE Voucher (
+    voucherID VARCHAR2(6) NOT NULL,
+    voucherName VARCHAR2(100) NOT NULL,
+    voucherType VARCHAR2(50),
+    rewardType VARCHAR2(20),
+    rewardValue NUMBER(8,2),
+    maxDiscountAmount NUMBER(8,2),
+    minSpend NUMBER(8,2),
+    startDate DATE,
+    endDate DATE,
+    startTime TIMESTAMP,
+    endTime TIMESTAMP,
+    eligibleMemberType VARCHAR2(10),
+    CONSTRAINT pk_voucher PRIMARY KEY (voucherID),
+    CONSTRAINT chk_voucher_type CHECK (voucherType IN ('Discount','Free Delivery')),
+    CONSTRAINT chk_voucher_reward_type CHECK (rewardType IN ('Percentage','Fixed')),
+    CONSTRAINT chk_voucher_reward_value CHECK (rewardValue >= 0),
+    CONSTRAINT chk_voucher_max_discount CHECK (maxDiscountAmount >= 0),
+    CONSTRAINT chk_voucher_min_spend CHECK (minSpend >= 0),
+    CONSTRAINT chk_voucher_date CHECK (endDate > startDate OR (endDate = startDate AND endTime > startTime)),
+    CONSTRAINT chk_voucher_time CHECK (endTime > startTime),
+    CONSTRAINT chk_voucher_eligible_member CHECK (eligibleMemberType IN ('Normal','VIP','All'))
+);
+
+-- =========================
+-- ITEM
+-- =========================
+CREATE TABLE Item (
+    itemID VARCHAR2(6) NOT NULL,
+    restID VARCHAR2(6) NOT NULL,
+    promoID VARCHAR2(6),
+    itemName VARCHAR2(100) NOT NULL,
+    itemCategory VARCHAR2(50) NOT NULL, -- can be (food,drinks) or seperarte wider(Appetizer, Main Course..)
+    itemDescription VARCHAR2(200),
+    itemPrice NUMBER(8,2) NOT NULL,
+    itemAvailability CHAR(1) DEFAULT 'Y' NOT NULL,
+    CONSTRAINT pk_item PRIMARY KEY (itemID),
+    CONSTRAINT fk_item_rest FOREIGN KEY (restID) REFERENCES Restaurant(restID),
+    CONSTRAINT fk_item_promo FOREIGN KEY (promoID) REFERENCES Promotion(promoID),
+    CONSTRAINT chk_item_price CHECK (itemPrice > 0),
+    CONSTRAINT chk_item_availability CHECK (itemAvailability IN ('Y','N'))
+);
+
+-- =========================
+-- RESTAURANT HOURS
+-- =========================
+CREATE TABLE RestaurantHours (
+    hourID VARCHAR2(6) NOT NULL,
+    restID VARCHAR2(6) NOT NULL,
+    dayOfWeek VARCHAR2(10) NOT NULL,
+    openTime TIMESTAMP,
+    closeTime TIMESTAMP,
+    isClosed CHAR(1) DEFAULT 'N',
+    CONSTRAINT pk_restaurant_hours PRIMARY KEY (hourID),
+    CONSTRAINT fk_restaurant_hours_rest FOREIGN KEY (restID) REFERENCES Restaurant(restID),
+    CONSTRAINT chk_restaurant_hours_day CHECK (
+        dayOfWeek IN ('Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday')
+    ),
+    CONSTRAINT chk_restaurant_hours_closed CHECK (isClosed IN ('Y','N')),
+    CONSTRAINT chk_restaurant_hours_time CHECK (
+        (isClosed = 'Y') OR (openTime IS NOT NULL AND closeTime IS NOT NULL AND openTime < closeTime)
+    )
+);
+
+-- =========================
+-- ORDERS
+-- =========================
+CREATE TABLE Orders (
+    orderID VARCHAR2(6) NOT NULL,
+    memberID VARCHAR2(6) NOT NULL,
+    restID VARCHAR2(6) NOT NULL,
+    orderDate DATE DEFAULT SYSDATE NOT NULL,
+    orderTime TIMESTAMP DEFAULT SYSTIMESTAMP NOT NULL,
+    totalAmount NUMBER(10,2) DEFAULT 0 NOT NULL,
+    orderStatus VARCHAR2(20) DEFAULT 'Pending' NOT NULL,
+    deliveryType VARCHAR2(10) NOT NULL,
+    deliveryAddressID VARCHAR2(6),
+    CONSTRAINT pk_order PRIMARY KEY (orderID),
+    CONSTRAINT fk_order_member FOREIGN KEY (memberID) REFERENCES Member(memberID),
+    CONSTRAINT fk_order_rest FOREIGN KEY (restID) REFERENCES Restaurant(restID),
+    CONSTRAINT fk_order_address FOREIGN KEY (deliveryAddressID) REFERENCES MemberAddress(addressID),
+    CONSTRAINT chk_order_status CHECK (orderStatus IN ('Pending','Preparing','Completed','Cancelled')),
+    CONSTRAINT chk_order_delivery_type CHECK (deliveryType IN ('Delivery','Pickup')),
+    CONSTRAINT chk_order_total_amount CHECK (totalAmount >= 0)
+);
+
+-- =========================
+-- ORDER DETAILS
+-- =========================
+CREATE TABLE OrderDetails (
+    orderID VARCHAR2(6) NOT NULL,
+    itemID VARCHAR2(6) NOT NULL,
+    quantity NUMBER(3) NOT NULL,
+    unitPrice NUMBER(8,2) NOT NULL,
+    subTotal NUMBER(10,2) NOT NULL,
+    CONSTRAINT pk_order_details PRIMARY KEY (orderID, itemID),
+    CONSTRAINT fk_od_order FOREIGN KEY (orderID) REFERENCES Orders(orderID),
+    CONSTRAINT fk_od_item FOREIGN KEY (itemID) REFERENCES Item(itemID),
+    CONSTRAINT chk_quantity CHECK (quantity > 0),
+    CONSTRAINT chk_unit_price CHECK (unitPrice > 0),
+    CONSTRAINT chk_subtotal CHECK (subTotal >= 0)
+);
+
+-- =========================
+-- PAYMENT
+-- =========================
+CREATE TABLE Payment (
+    paymentID VARCHAR2(6) NOT NULL,
+    orderID VARCHAR2(6) NOT NULL,
+    paymentMethod VARCHAR2(20) NOT NULL,
+    paymentDate DATE DEFAULT SYSDATE NOT NULL,
+    discountAmount NUMBER(8,2) DEFAULT 0,
+    amountPaid NUMBER(10,2) NOT NULL,
+    paymentStatus VARCHAR2(20) DEFAULT 'Pending' NOT NULL,
+    CONSTRAINT pk_payment PRIMARY KEY (paymentID),
+    CONSTRAINT fk_payment_order FOREIGN KEY (orderID) REFERENCES Orders(orderID),
+    CONSTRAINT uq_payment_order UNIQUE (orderID),
+    CONSTRAINT chk_payment_method CHECK (paymentMethod IN ('Cash','Card','E-Wallet')),
+    CONSTRAINT chk_payment_status CHECK (paymentStatus IN ('Pending','Paid','Failed')),
+    CONSTRAINT chk_payment_amount_paid CHECK (amountPaid >= 0)
+);
+
+-- =========================
+-- PICKUP
+-- =========================
+CREATE TABLE Pickup (
+    pickupID VARCHAR2(6) NOT NULL,
+    memberID VARCHAR2(6) NOT NULL,
+    orderID VARCHAR2(6) NOT NULL,
+    pickupTime TIMESTAMP,
+    pickupStatus VARCHAR2(50),
+    CONSTRAINT pk_pickup PRIMARY KEY (pickupID),
+    CONSTRAINT fk_pickup_member FOREIGN KEY (memberID) REFERENCES Member(memberID),
+    CONSTRAINT fk_pickup_order FOREIGN KEY (orderID) REFERENCES Orders(orderID),
+    CONSTRAINT chk_pickup_status CHECK (pickupStatus IN ('Preparing','Ready','Picked Up'))
+);
+
+-- =========================
+-- DELIVERY
+-- =========================
+CREATE TABLE Delivery (
+    deliveryID VARCHAR2(6) NOT NULL,
+    orderID VARCHAR2(6) NOT NULL,
+    riderID VARCHAR2(6) NOT NULL,
+    deliveryStatus VARCHAR2(20) DEFAULT 'Preparing',
+    deliveryFee NUMBER(6,2),
+    CONSTRAINT pk_delivery PRIMARY KEY (deliveryID),
+    CONSTRAINT fk_delivery_order FOREIGN KEY (orderID) REFERENCES Orders(orderID),
+    CONSTRAINT fk_delivery_rider FOREIGN KEY (riderID) REFERENCES Rider(riderID),
+    CONSTRAINT chk_delivery_status CHECK (deliveryStatus IN ('Preparing','Delivering','Completed')),
+    CONSTRAINT chk_delivery_fee CHECK (deliveryFee >= 0)
+);
+
+-- =========================
+-- VOUCHER REDEMPTION 
+-- =========================
+CREATE TABLE VoucherRedemption (
+    voucherID VARCHAR2(6) NOT NULL,
+    memberID VARCHAR2(6) NOT NULL,
+    orderID VARCHAR2(6) NOT NULL,
+    redeemedDate DATE DEFAULT SYSDATE NOT NULL,
+    CONSTRAINT pk_voucher_redemption PRIMARY KEY (voucherID, orderID),
+    CONSTRAINT fk_vr_voucher FOREIGN KEY (voucherID) REFERENCES Voucher(voucherID),
+    CONSTRAINT fk_vr_order FOREIGN KEY (orderID) REFERENCES Orders(orderID),
+    CONSTRAINT fk_vr_member FOREIGN KEY (memberID) REFERENCES Member(memberID)
+);
