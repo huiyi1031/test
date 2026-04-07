@@ -5,12 +5,14 @@ DROP TABLE Pickup;
 DROP TABLE OrderDetails;
 DROP TABLE Payment;
 DROP TABLE Orders;
+DROP TABLE ItemPromotion;
 DROP TABLE Item;
 DROP TABLE Promotion;
 DROP TABLE Enrollment;
 DROP TABLE MemberPlan;
 DROP TABLE Voucher;
 DROP TABLE Rider;
+DROP TABLE DeliveryCompany;
 DROP TABLE MemberAddress;
 DROP TABLE Restaurant;
 DROP TABLE Member;
@@ -100,15 +102,30 @@ CREATE TABLE Enrollment (
 );
 
 -- =========================
+-- DeliveryCompany
+-- =========================
+CREATE TABLE DeliveryCompany (
+    companyID VARCHAR2(6) NOT NULL,
+    companyName VARCHAR2(50) NOT NULL,
+    baseFee NUMBER(6,2) DEFAULT 0 NOT NULL,
+    contactNo VARCHAR2(20),
+    CONSTRAINT pk_delivery_company PRIMARY KEY (companyID),
+    CONSTRAINT uq_delivery_company_name UNIQUE (companyName),
+    CONSTRAINT chk_delivery_company_base_fee CHECK (baseFee >= 0)
+);
+
+-- =========================
 -- RIDER
 -- =========================
 CREATE TABLE Rider (
     riderID VARCHAR2(6) NOT NULL,
+    companyID VARCHAR2(6)NOT NULL,
     riderName VARCHAR2(100) NOT NULL,
     riderContact VARCHAR2(15) NOT NULL,
     riderEmail VARCHAR2(100) NOT NULL,
     plateNumber VARCHAR2(20) NOT NULL,
     CONSTRAINT pk_rider PRIMARY KEY (riderID),
+    CONSTRAINT fk_rider_company FOREIGN KEY (companyID) REFERENCES DeliveryCompany(companyID),
     CONSTRAINT uq_rider_contact UNIQUE (riderContact),
     CONSTRAINT uq_rider_email UNIQUE (riderEmail),
     CONSTRAINT chk_rider_email CHECK (
@@ -134,6 +151,8 @@ CREATE TABLE Promotion (
     CONSTRAINT chk_promotion_date CHECK (endDate > startDate OR (endDate = startDate AND endTime > startTime)),
     CONSTRAINT chk_promotion_time CHECK (endTime > startTime)
 );
+
+
 
 -- =========================
 -- VOUCHER
@@ -168,17 +187,33 @@ CREATE TABLE Voucher (
 CREATE TABLE Item (
     itemID VARCHAR2(6) NOT NULL,
     restID VARCHAR2(6) NOT NULL,
-    promoID VARCHAR2(6),
     itemName VARCHAR2(100) NOT NULL,
-    itemCategory VARCHAR2(50) NOT NULL, -- can be (food,drinks) or seperarte wider(Appetizer, Main Course..)
+    itemCategory VARCHAR2(50) NOT NULL, 
     itemDescription VARCHAR2(200),
     itemPrice NUMBER(8,2) NOT NULL,
     itemAvailability CHAR(1) DEFAULT 'Y' NOT NULL,
     CONSTRAINT pk_item PRIMARY KEY (itemID),
     CONSTRAINT fk_item_rest FOREIGN KEY (restID) REFERENCES Restaurant(restID),
-    CONSTRAINT fk_item_promo FOREIGN KEY (promoID) REFERENCES Promotion(promoID),
     CONSTRAINT chk_item_price CHECK (itemPrice > 0),
     CONSTRAINT chk_item_availability CHECK (itemAvailability IN ('Y','N'))
+);
+
+-- =========================
+-- ITEM PROMOTION
+-- =========================
+CREATE TABLE ItemPromotion (
+    itemPromoID VARCHAR2(8) NOT NULL,
+    itemID VARCHAR2(6) NOT NULL,
+    promoID VARCHAR2(6) NOT NULL,
+    startDate DATE NOT NULL,
+    endDate DATE NOT NULL,
+    startTime TIMESTAMP NOT NULL,
+    endTime TIMESTAMP NOT NULL,
+    CONSTRAINT pk_item_promotion PRIMARY KEY (itemPromoID),
+    CONSTRAINT fk_ip_item FOREIGN KEY (itemID) REFERENCES Item(itemID),
+    CONSTRAINT fk_ip_promo FOREIGN KEY (promoID) REFERENCES Promotion(promoID),
+    CONSTRAINT chk_ip_date CHECK (endDate >= startDate),
+    CONSTRAINT chk_ip_time CHECK (endTime > startTime)
 );
 
 -- =========================
@@ -282,11 +317,13 @@ CREATE TABLE Delivery (
     deliveryID VARCHAR2(6) NOT NULL,
     orderID VARCHAR2(6) NOT NULL,
     riderID VARCHAR2(6) NOT NULL,
+    companyID VARCHAR2(6) NOT NULL,
     deliveryStatus VARCHAR2(20) DEFAULT 'Preparing',
     deliveryFee NUMBER(6,2),
     CONSTRAINT pk_delivery PRIMARY KEY (deliveryID),
     CONSTRAINT fk_delivery_order FOREIGN KEY (orderID) REFERENCES Orders(orderID),
     CONSTRAINT fk_delivery_rider FOREIGN KEY (riderID) REFERENCES Rider(riderID),
+    CONSTRAINT fk_delivery_company FOREIGN KEY (companyID) REFERENCES DeliveryCompany(companyID),
     CONSTRAINT chk_delivery_status CHECK (deliveryStatus IN ('Preparing','Delivering','Completed')),
     CONSTRAINT chk_delivery_fee CHECK (deliveryFee >= 0)
 );
@@ -295,12 +332,12 @@ CREATE TABLE Delivery (
 -- VOUCHER REDEMPTION 
 -- =========================
 CREATE TABLE VoucherRedemption (
-    voucherID VARCHAR2(6) NOT NULL,
-    memberID VARCHAR2(6) NOT NULL,
-    orderID VARCHAR2(6) NOT NULL,
-    redeemedDate DATE DEFAULT SYSDATE NOT NULL,
-    CONSTRAINT pk_voucher_redemption PRIMARY KEY (voucherID, orderID),
+    voucherID     VARCHAR2(6) NOT NULL,
+    memberID      VARCHAR2(6) NOT NULL,
+    orderID       VARCHAR2(6), 
+    redeemedDate  DATE DEFAULT SYSDATE NOT NULL,
+    CONSTRAINT pk_voucher_redemption PRIMARY KEY (voucherID, memberID),
     CONSTRAINT fk_vr_voucher FOREIGN KEY (voucherID) REFERENCES Voucher(voucherID),
-    CONSTRAINT fk_vr_order FOREIGN KEY (orderID) REFERENCES Orders(orderID),
-    CONSTRAINT fk_vr_member FOREIGN KEY (memberID) REFERENCES Member(memberID)
+    CONSTRAINT fk_vr_member  FOREIGN KEY (memberID) REFERENCES Member(memberID),
+    CONSTRAINT fk_vr_order   FOREIGN KEY (orderID) REFERENCES Orders(orderID)
 );
